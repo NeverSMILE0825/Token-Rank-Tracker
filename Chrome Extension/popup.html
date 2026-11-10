@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Find Rank</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand"><span>#</span><strong>Find Rank</strong></div>
+      <p id="live" class="live">Ready</p>
+    </header>
+
+    <section id="readout" class="readout" hidden>
+      <div>
+        <a id="rank" class="rank" href="https://dexscreener.com/" target="_blank" rel="noreferrer">#—</a>
+        <p id="window" class="window">Trending 6H</p>
+      </div>
+      <div class="meta">
+        <strong id="pair">—</strong>
+        <p id="detail"></p>
+      </div>
+    </section>
+    <p id="status" class="status" hidden></p>
+
+    <form id="form" autocomplete="off">
+      <label>
+        <span>Token name</span>
+        <input id="name" maxlength="80" placeholder="Grand Theft Anakin" />
+      </label>
+      <label>
+        <span>Ticker</span>
+        <input id="ticker" maxlength="24" placeholder="GTA" spellcheck="false" />
+      </label>
+      <label class="wide">
+        <span>Contract <em>optional</em></span>
+        <input id="ca" maxlength="120" placeholder="0x… or mint address" spellcheck="false" />
+      </label>
+      <label class="wide">
+        <span>Base token <em>optional</em></span>
+        <input id="base" maxlength="120" placeholder="Base token address" spellcheck="false" />
+      </label>
+      <label class="wide">
+        <span>Pair address <em>optional</em></span>
+        <input id="pair" maxlength="140" placeholder="Pair or pool address" spellcheck="false" />
+      </label>
+      <label>
+        <span>Chain</span>
+        <select id="chain"></select>
+      </label>
+      <label>
+        <span>Window</span>
+        <select id="timeframe">
+          <option value="m5">Trending 5M</option>
+          <option value="h1">Trending 1H</option>
+          <option value="h6" selected>Trending 6H</option>
+          <option value="h24">Trending 24H</option>
+        </select>
+      </label>
+      <p id="error" class="error" hidden></p>
+      <div class="actions">
+        <button type="submit" id="track" class="primary">Track</button>
+        <button type="button" id="stop" class="ghost">Stop</button>
+      </div>
+    </form>
+    <p class="hint">The rank stays on the toolbar icon. A DexScreener tab stays open in the background so it can update while you work in another tab.</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

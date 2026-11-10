@@ -1,0 +1,264 @@
+{
+  "chains": [
+    {
+      "id": "ethereum",
+      "name": "Ethereum",
+      "popular": true
+    },
+    {
+      "id": "solana",
+      "name": "Solana",
+      "popular": true
+    },
+    {
+      "id": "bsc",
+      "name": "BNB Chain",
+      "popular": true
+    },
+    {
+      "id": "base",
+      "name": "Base",
+      "popular": true
+    },
+    {
+      "id": "robinhood",
+      "name": "Robinhood",
+      "popular": true
+    },
+    {
+      "id": "polygon",
+      "name": "Polygon",
+      "popular": true
+    },
+    {
+      "id": "arbitrum",
+      "name": "Arbitrum",
+      "popular": true
+    },
+    {
+      "id": "avalanche",
+      "name": "Avalanche",
+      "popular": true
+    },
+    {
+      "id": "optimism",
+      "name": "Optimism"
+    },
+    {
+      "id": "sui",
+      "name": "Sui"
+    },
+    {
+      "id": "tron",
+      "name": "Tron"
+    },
+    {
+      "id": "ton",
+      "name": "TON"
+    },
+    {
+      "id": "hyperliquid",
+      "name": "Hyperliquid"
+    },
+    {
+      "id": "hyperevm",
+      "name": "HyperEVM"
+    },
+    {
+      "id": "pulsechain",
+      "name": "PulseChain"
+    },
+    {
+      "id": "worldchain",
+      "name": "World Chain"
+    },
+    {
+      "id": "cronos",
+      "name": "Cronos"
+    },
+    {
+      "id": "near",
+      "name": "NEAR"
+    },
+    {
+      "id": "xrpl",
+      "name": "XRPL"
+    },
+    {
+      "id": "cardano",
+      "name": "Cardano"
+    },
+    {
+      "id": "aptos",
+      "name": "Aptos"
+    },
+    {
+      "id": "algorand",
+      "name": "Algorand"
+    },
+    {
+      "id": "berachain",
+      "name": "Berachain"
+    },
+    {
+      "id": "sonic",
+      "name": "Sonic"
+    },
+    {
+      "id": "monad",
+      "name": "Monad"
+    },
+    {
+      "id": "abstract",
+      "name": "Abstract"
+    },
+    {
+      "id": "ink",
+      "name": "Ink"
+    },
+    {
+      "id": "hedera",
+      "name": "Hedera"
+    },
+    {
+      "id": "unichain",
+      "name": "Unichain"
+    },
+    {
+      "id": "plasma",
+      "name": "Plasma"
+    },
+    {
+      "id": "stable",
+      "name": "Stable"
+    },
+    {
+      "id": "elysium",
+      "name": "Elysium"
+    },
+    {
+      "id": "arc",
+      "name": "Arc"
+    },
+    {
+      "id": "linea",
+      "name": "Linea"
+    },
+    {
+      "id": "scroll",
+      "name": "Scroll"
+    },
+    {
+      "id": "mantle",
+      "name": "Mantle"
+    },
+    {
+      "id": "blast",
+      "name": "Blast"
+    },
+    {
+      "id": "opbnb",
+      "name": "opBNB"
+    },
+    {
+      "id": "zksync",
+      "name": "zkSync"
+    },
+    {
+      "id": "fantom",
+      "name": "Fantom"
+    },
+    {
+      "id": "celo",
+      "name": "Celo"
+    },
+    {
+      "id": "megaeth",
+      "name": "MegaETH"
+    },
+    {
+      "id": "seiv2",
+      "name": "Sei V2"
+    },
+    {
+      "id": "apechain",
+      "name": "ApeChain"
+    },
+    {
+      "id": "stacks",
+      "name": "Stacks"
+    },
+    {
+      "id": "beam",
+      "name": "Beam"
+    },
+    {
+      "id": "injective",
+      "name": "Injective"
+    },
+    {
+      "id": "metis",
+      "name": "Metis"
+    },
+    {
+      "id": "conflux",
+      "name": "Conflux"
+    },
+    {
+      "id": "flare",
+      "name": "Flare"
+    },
+    {
+      "id": "soneium",
+      "name": "Soneium"
+    },
+    {
+      "id": "manta",
+      "name": "Manta"
+    },
+    {
+      "id": "kava",
+      "name": "Kava"
+    },
+    {
+      "id": "merlinchain",
+      "name": "Merlin Chain"
+    },
+    {
+      "id": "movement",
+      "name": "Movement"
+    },
+    {
+      "id": "story",
+      "name": "Story"
+    },
+    {
+      "id": "telos",
+      "name": "Telos"
+    },
+    {
+      "id": "polkadot",
+      "name": "Polkadot"
+    },
+    {
+      "id": "fuse",
+      "name": "Fuse"
+    },
+    {
+      "id": "katana",
+      "name": "Katana"
+    },
+    {
+      "id": "stepnetwork",
+      "name": "Step Network"
+    },
+    {
+      "id": "flowevm",
+      "name": "Flow EVM"
+    },
+    {
+      "id": "multiversx",
+      "name": "MultiversX"
+    }
+  ]
+}
