@@ -1,0 +1,13 @@
+---
+description: Push this repo and refresh the GitHub Pages site after codebase updates
+alwaysApply: true
+---
+
+# Publish after updates
+
+When you change this project, commit the relevant files and push to `origin` `main` before you finish. GitHub Pages serves `docs/` from `main`, so that push is what updates the live site.
+
+- Do not commit `node_modules`, secrets, or local environment files.
+- Do not force-push.
+- Leave asset links in `docs/` relative (`styles.css`, not `/styles.css`) so the project site keeps its `/Token-Rank-Tracker/` prefix.
+- Live ranks stay on the local server (`npm start`). DexScreener rejects list requests whose origin is not `dexscreener.com`, including GitHub Pages.

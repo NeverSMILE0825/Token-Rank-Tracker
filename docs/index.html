@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Find Rank</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <div class="brand">
+          <span class="mark" aria-hidden="true">#</span>
+          <div>
+            <h1>Find Rank</h1>
+            <p>Exact DexScreener trending position, across every chain.</p>
+          </div>
+        </div>
+        <p class="conn" id="conn">Connecting</p>
+      </header>
+
+      <p id="hosted" class="hint" hidden></p>
+
+      <form id="form" class="panel" autocomplete="off">
+        <div class="fields">
+          <label>
+            <span>Token name</span>
+            <input id="name" name="name" placeholder="Grand Theft Anakin" maxlength="80" />
+          </label>
+          <label>
+            <span>Ticker</span>
+            <span class="ticker">
+              <i>$</i>
+              <input id="ticker" name="ticker" placeholder="GTA" maxlength="24" spellcheck="false" />
+            </span>
+          </label>
+          <label class="grow">
+            <span>Contract <em>optional</em></span>
+            <input id="ca" name="ca" placeholder="0x… or mint address" maxlength="120" spellcheck="false" />
+          </label>
+        </div>
+
+        <div class="controls">
+          <fieldset>
+            <legend>Trending window</legend>
+            <div class="segment" id="timeframe">
+              <label><input type="radio" name="timeframe" value="m5" /><span>5M</span></label>
+              <label><input type="radio" name="timeframe" value="h1" /><span>1H</span></label>
+              <label><input type="radio" name="timeframe" value="h6" /><span>6H</span></label>
+              <label><input type="radio" name="timeframe" value="h24" checked /><span>24H</span></label>
+            </div>
+          </fieldset>
+          <label class="check">
+            <input id="live" type="checkbox" checked />
+            <span>
+              <strong>Follow live</strong>
+              <small>Stay on the rank after it is found. The list is 100 pairs per page.</small>
+            </span>
+          </label>
+          <label class="check">
+            <input id="findAll" type="checkbox" />
+            <span>
+              <strong>Include lower pools</strong>
+              <small>Keep going after the best pair and list the token’s other pools.</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="chains">
+          <div class="chains-head">
+            <h2>Chains</h2>
+            <div class="chain-actions">
+              <button type="button" id="popular" class="texty">Popular</button>
+              <button type="button" id="clear" class="texty">Clear</button>
+            </div>
+          </div>
+          <div class="chain-grid" id="popular-grid"></div>
+          <details id="more">
+            <summary>All chains</summary>
+            <input id="chain-search" type="search" placeholder="Search chains" />
+            <div class="chain-grid" id="all-grid"></div>
+          </details>
+          <p class="hint" id="cap">Up to 8 chains at once. Add the token name with the ticker so lookalikes are skipped. A contract address wins over both.</p>
+        </div>
+
+        <p class="form-error" id="form-error" hidden></p>
+
+        <div class="actions">
+          <button type="submit" class="primary" id="track">Track rank</button>
+          <button type="button" class="ghost" id="stop" disabled>Stop</button>
+        </div>
+      </form>
+
+      <section class="board" id="board" aria-live="polite">
+        <div class="empty">
+          <p class="empty-kicker">Trending list</p>
+          <h2>Where does your token sit right now?</h2>
+          <p>
+            Find Rank walks the same pages as DexScreener — 1–100, 101–200, 201–300 — on Ethereum, Solana, Robinhood, BNB Chain, Base, and the rest. The number you get is the row number on that list.
+          </p>
+        </div>
+      </section>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
