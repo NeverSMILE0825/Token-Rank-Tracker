@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Find Rank",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Live DexScreener trending rank on the toolbar.",
   "permissions": ["storage", "tabs", "alarms", "scripting"],
   "host_permissions": ["https://dexscreener.com/*"],
