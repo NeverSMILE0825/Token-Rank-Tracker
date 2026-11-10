@@ -354,13 +354,60 @@ function showError(message) {
 }
 
 const onGithubPages = location.hostname.endsWith("github.io");
+const inDesktopApp = Boolean(window.findRank);
+
+function applyMessage(message) {
+  if (!message || typeof message !== "object") return;
+  if (message.type === "error") {
+    showError(message.error);
+    setRunning(false);
+    liveSession = false;
+    setConn("Ready", "ready");
+    return;
+  }
+  if (message.type === "started") {
+    activeQuery = message.query;
+    results.clear();
+    for (const id of message.query.chains) results.set(id, { status: "scanning" });
+    renderBoard();
+    return;
+  }
+  if (message.type === "chain") {
+    results.set(message.chainId, message);
+    if (message.match) rememberRank(message.chainId, message.match.rank);
+    renderBoard();
+    return;
+  }
+  if (message.type === "live") {
+    liveSession = true;
+    setConn("Live", "live");
+    setRunning(true);
+    return;
+  }
+  if (message.type === "idle") {
+    liveSession = false;
+    setRunning(false);
+    setConn("Ready", "ready");
+  }
+}
 
 function connect() {
   if (onGithubPages) {
     const hosted = document.querySelector("#hosted");
     hosted.hidden = false;
-    hosted.textContent = "This is the live interface. Rank lookups run in the local app, because DexScreener refuses list requests that do not come from dexscreener.com. On this computer run npm start and open http://127.0.0.1:4173.";
+    hosted.textContent = "This is the live interface. Rank lookups run in the desktop app, because DexScreener refuses list requests that do not come from dexscreener.com.";
     setConn("Preview", "ready");
+    return;
+  }
+  if (inDesktopApp) {
+    window.findRank.onMessage(applyMessage);
+    socket = {
+      readyState: 1,
+      send(payload) {
+        window.findRank.send(JSON.parse(payload));
+      },
+    };
+    setConn(liveSession ? "Live" : "Ready", liveSession ? "live" : "ready");
     return;
   }
   const protocol = location.protocol === "https:" ? "wss" : "ws";
@@ -374,42 +421,10 @@ function connect() {
     setTimeout(connect, 1000);
   });
   socket.addEventListener("message", (event) => {
-    let message;
     try {
-      message = JSON.parse(event.data);
+      applyMessage(JSON.parse(event.data));
     } catch {
-      return;
-    }
-    if (message.type === "error") {
-      showError(message.error);
-      setRunning(false);
-      liveSession = false;
-      setConn("Ready", "ready");
-      return;
-    }
-    if (message.type === "started") {
-      activeQuery = message.query;
-      results.clear();
-      for (const id of message.query.chains) results.set(id, { status: "scanning" });
-      renderBoard();
-      return;
-    }
-    if (message.type === "chain") {
-      results.set(message.chainId, message);
-      if (message.match) rememberRank(message.chainId, message.match.rank);
-      renderBoard();
-      return;
-    }
-    if (message.type === "live") {
-      liveSession = true;
-      setConn("Live", "live");
-      setRunning(true);
-      return;
-    }
-    if (message.type === "idle") {
-      liveSession = false;
-      setRunning(false);
-      setConn("Ready", "ready");
+      /* ignore malformed frames */
     }
   });
 }
@@ -483,8 +498,10 @@ board.addEventListener("click", async (event) => {
 });
 
 const saved = loadSaved();
-fetch("chains.json")
-  .then((response) => response.json())
+const chainRequest = inDesktopApp
+  ? window.findRank.chains().then((chains) => ({ chains }))
+  : fetch("chains.json").then((response) => response.json());
+chainRequest
   .then((payload) => {
     renderChains(payload.chains);
     applySaved(saved);
