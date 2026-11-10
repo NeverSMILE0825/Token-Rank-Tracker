@@ -385,6 +385,15 @@ summary {
   margin-right: 2px;
 }
 
+.window {
+  margin-top: 8px;
+  color: var(--faint);
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .delta { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 12px; margin-top: 6px; }
 .delta.up { color: var(--up); }
 .delta.down { color: var(--down); }

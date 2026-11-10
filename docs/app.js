@@ -22,6 +22,8 @@ let liveSession = false;
 let activeQuery = null;
 let chainCatalog = [];
 
+const WINDOWS = { m5: "Trending 5M", h1: "Trending 1H", h6: "Trending 6H", h24: "Trending 24H" };
+
 const REASON = {
   contract: "Matched contract",
   "name+ticker": "Matched name + ticker",
@@ -291,6 +293,7 @@ function card(chainId) {
     <div class="rank-row">
       <div>
         <div class="rank"><small>#</small>${formatRank(match.rank)}</div>
+        <div class="window">${esc(WINDOWS[activeQuery?.timeframe] || "Trending")}</div>
         ${movement(chainId)}
       </div>
       ${spark(chainId)}
