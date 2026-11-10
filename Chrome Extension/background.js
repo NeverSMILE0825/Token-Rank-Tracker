@@ -5,15 +5,48 @@ const BADGE = {
   error: "#9f1239",
 };
 
+const RANK_KEY = {
+  m5: "trendingScoreM5",
+  h1: "trendingScoreH1",
+  h6: "trendingScoreH6",
+  h24: "trendingScoreH24",
+};
+
 let tabId = null;
 let ownedTab = false;
+let highlightTabId = null;
 let tracking = false;
 let query = null;
 let arming = false;
 let armedAt = 0;
+let locateWait = null;
+let turn = Promise.resolve();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function enqueue(task) {
+  const run = turn.then(task, task);
+  turn = run.then(() => {}, () => {});
+  return run;
+}
+
+function listUrl(chainId, page, timeframe) {
+  const rankBy = RANK_KEY[timeframe] || RANK_KEY.h6;
+  const path = page <= 1 ? `https://dexscreener.com/${chainId}` : `https://dexscreener.com/${chainId}/page-${page}`;
+  return `${path}?order=desc&rankBy=${rankBy}`;
+}
+
+function sameQuery(left, right) {
+  if (!left || !right) return false;
+  return ["name", "ticker", "ca", "base", "pair", "chainId", "timeframe"].every((key) => (left[key] || "") === (right[key] || ""));
+}
+
+function pairAddressFrom(result) {
+  if (result?.pairAddress) return result.pairAddress;
+  const match = String(result?.pairUrl || "").match(/dexscreener\.com\/[^/]+\/([^/?#]+)/i);
+  return match ? decodeURIComponent(match[1]) : "";
 }
 
 function badgeText(rank) {
@@ -98,7 +131,7 @@ async function waitUntilLoaded(id) {
   });
 }
 
-async function deliver(id) {
+async function deliver(id, message) {
   const inject = () => chrome.scripting.executeScript({
     target: { tabId: id },
     world: "MAIN",
@@ -107,7 +140,7 @@ async function deliver(id) {
   await inject();
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
-      await chrome.tabs.sendMessage(id, { type: "track", query });
+      await chrome.tabs.sendMessage(id, message);
       return;
     } catch {
       if (attempt === 2) {
@@ -121,7 +154,148 @@ async function deliver(id) {
   throw new Error("The DexScreener tab did not connect. Reload that tab, then press Track again.");
 }
 
+function markRow(pairAddress, symbol, name) {
+  const styleId = "find-rank-highlight-style";
+  let style = document.getElementById(styleId);
+  if (!style) {
+    style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = [
+      "a.find-rank-hit {",
+      "  box-shadow: inset 0 0 0 3px #ff2a2a !important;",
+      "  background: rgba(255, 42, 42, 0.08) !important;",
+      "  border-radius: 4px !important;",
+      "  position: relative !important;",
+      "  z-index: 30 !important;",
+      "}",
+    ].join("\n");
+    document.documentElement.appendChild(style);
+  }
+  const wantAddress = String(pairAddress || "").toLowerCase();
+  const wantSymbol = String(symbol || "").replace(/^\$+/, "").replace(/\s+/g, "").toUpperCase();
+  const wantName = String(name || "").trim().toLowerCase();
+  const started = Date.now();
+  const find = () => {
+    document.querySelectorAll("a.find-rank-hit").forEach((row) => row.classList.remove("find-rank-hit"));
+    const links = [...document.querySelectorAll("a[href]")];
+    let row = wantAddress
+      ? links.find((link) => (link.getAttribute("href") || "").toLowerCase().includes(wantAddress))
+      : null;
+    if (!row && wantSymbol) {
+      row = links.find((link) => {
+        const text = link.innerText || "";
+        const symbolOk = text.toUpperCase().replace(/\s+/g, "").includes(wantSymbol);
+        const nameOk = !wantName || text.toLowerCase().includes(wantName);
+        return symbolOk && nameOk;
+      });
+    }
+    if (!row) return null;
+    row.classList.add("find-rank-hit");
+    row.scrollIntoView({ block: "center", inline: "nearest" });
+    return { ok: true, text: (row.innerText || "").slice(0, 180) };
+  };
+  return new Promise((resolve) => {
+    const tick = () => {
+      const found = find();
+      if (found) {
+        resolve(found);
+        return;
+      }
+      if (Date.now() - started > 12000) {
+        resolve({ ok: false });
+        return;
+      }
+      setTimeout(tick, 400);
+    };
+    tick();
+  });
+}
+
+async function openList(url) {
+  if (highlightTabId != null && highlightTabId !== tabId) {
+    try {
+      return await chrome.tabs.update(highlightTabId, { url, active: true });
+    } catch {
+      highlightTabId = null;
+    }
+  }
+  const created = await chrome.tabs.create({ url, active: true });
+  highlightTabId = created.id;
+  return created;
+}
+
+async function showOnList(found) {
+  const chainId = found.chainId || "ethereum";
+  const timeframe = found.timeframe || "h6";
+  const pages = [found.page || 1];
+  if ((found.page || 1) > 1) pages.push(found.page - 1);
+  pages.push((found.page || 1) + 1);
+  let last = { ok: false };
+  for (const page of pages) {
+    const tab = await openList(listUrl(chainId, page, timeframe));
+    highlightTabId = tab.id;
+    await waitUntilLoaded(tab.id);
+    const [drawn] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: markRow,
+      args: [pairAddressFrom(found), found.symbol || "", found.name || ""],
+    });
+    last = drawn?.result || { ok: false };
+    if (last.ok) return { ...last, page };
+  }
+  return last;
+}
+
+async function rememberHighlight(highlight) {
+  await chrome.storage.local.set({ highlight });
+}
+
+async function highlight(nextQuery) {
+  return enqueue(async () => {
+    const stored = await chrome.storage.local.get(["result", "query"]);
+    await chrome.storage.local.set({ query: nextQuery });
+    await rememberHighlight({ status: "scanning", page: 1, totalPages: 0 });
+    let found = null;
+    if (stored.result?.status === "live" && sameQuery(stored.query, nextQuery) && pairAddressFrom(stored.result)) {
+      found = stored.result;
+    } else {
+      const tab = await ensureTab();
+      await waitUntilLoaded(tab.id);
+      const pending = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          locateWait = null;
+          reject(new Error("DexScreener did not answer. Press Highlight again."));
+        }, 90000);
+        locateWait = (message) => {
+          clearTimeout(timer);
+          locateWait = null;
+          resolve(message);
+        };
+      });
+      await deliver(tab.id, { type: "locate", query: nextQuery });
+      const message = await pending;
+      if (message.status === "missing") throw new Error("That pair is not on this chain’s trending list right now.");
+      if (message.status === "error" || message.type === "locate-status") {
+        throw new Error(message.error || "DexScreener did not answer.");
+      }
+      found = message;
+    }
+    const drawn = await showOnList(found);
+    if (!drawn.ok) throw new Error("The list opened, but that pair was not on the page.");
+    await rememberHighlight({
+      status: "shown",
+      rank: found.rank,
+      symbol: found.symbol,
+      name: found.name,
+      page: drawn.page,
+    });
+    return { rank: found.rank, page: drawn.page };
+  });
+}
+
 async function arm() {
+  if (!tracking || !query || arming) return;
+  return enqueue(async () => {
   if (!tracking || !query || arming) return;
   arming = true;
   try {
@@ -134,7 +308,7 @@ async function arm() {
         /* pinning is optional */
       }
     }
-    await deliver(tab.id);
+    await deliver(tab.id, { type: "track", query });
     armedAt = Date.now();
     await chrome.alarms.create("find-rank-watch", { periodInMinutes: 1 });
   } catch (error) {
@@ -142,6 +316,7 @@ async function arm() {
   } finally {
     arming = false;
   }
+  });
 }
 
 async function start(nextQuery) {
@@ -171,6 +346,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (message?.type === "highlight" && message.query && sender.id === chrome.runtime.id && !sender.tab) {
+    highlight(message.query)
+      .then((info) => sendResponse({ ok: true, ...info }))
+      .catch(async (error) => {
+        await rememberHighlight({ status: "error", error: error.message || "Could not highlight that pair." });
+        sendResponse({ ok: false, error: error.message });
+      });
+    return true;
+  }
   if (message?.type === "stop" && !sender.tab) {
     stop();
     sendResponse({ ok: true });
@@ -181,8 +365,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
-  if (message?.source === "find-rank-page" && sender.tab?.id === tabId && tracking) {
+  if (message?.source === "find-rank-page" && sender.tab?.id === tabId) {
     if (message.type === "pong") {
+      sendResponse({ ok: true });
+      return false;
+    }
+    if (message.type === "locate-status") {
+      rememberHighlight({
+        status: message.status,
+        page: message.page,
+        totalPages: message.totalPages,
+        error: message.error,
+      });
+      if (message.status === "missing" || message.status === "error") locateWait?.(message);
+      sendResponse({ ok: true });
+      return false;
+    }
+    if (message.type === "located") {
+      locateWait?.(message);
+      sendResponse({ ok: true });
+      return false;
+    }
+    if (!tracking) {
       sendResponse({ ok: true });
       return false;
     }

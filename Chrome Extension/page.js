@@ -1,6 +1,7 @@
 (() => {
-  if (window.__findRank) return;
-  window.__findRank = true;
+  const VERSION = "1.1.1";
+  if (window.__findRank?.version === VERSION) return;
+  if (window.__findRank?.stop) window.__findRank.stop();
 
   const RANK_KEY = {
     m5: "trendingScoreM5",
@@ -220,8 +221,9 @@
 
   function socketUrl(chainId, page, timeframe) {
     const tf = RANK_KEY[timeframe] ? timeframe : "h6";
+    // The path is the "Last 24 hours" pair window. Rank by is the separate trending key.
     const query = `rankBy[key]=${RANK_KEY[tf]}&rankBy[order]=desc&filters[chainIds][0]=${encodeURIComponent(chainId)}`;
-    return `wss://io.dexscreener.com/dex/screener/v7/pairs/${tf}/${page}?${query}`;
+    return `wss://io.dexscreener.com/dex/screener/v7/pairs/h24/${page}?${query}`;
   }
 
   function pageUrl(chainId, page, timeframe) {
@@ -293,6 +295,7 @@
   }
 
   let generation = 0;
+  let locateGeneration = 0;
   const feeds = [];
   let lastRank = null;
   let lastPost = 0;
@@ -339,23 +342,7 @@
     if (hit.rank === lastRank && now - lastPost < 2000) return;
     lastRank = hit.rank;
     lastPost = now;
-    const pair = hit.pair;
-    post({
-      type: "rank",
-      status: "live",
-      rank: hit.rank,
-      page: hit.page,
-      totalPages: Math.max(1, Math.ceil((total || 0) / 100)),
-      symbol: pair.base.symbol,
-      name: pair.base.name,
-      quote: pair.quote.symbol,
-      priceUsd: pair.priceUsd,
-      marketCap: pair.marketCap,
-      reason: reasonFor(wanted),
-      timeframe,
-      chainId,
-      pairUrl: pair.pairAddress ? `https://dexscreener.com/${chainId}/${pair.pairAddress}` : pageUrl(chainId, hit.page, timeframe),
-    });
+    post({ type: "rank", ...describeHit(hit, wanted, chainId, timeframe, total) });
   }
 
   function watch(chainId, timeframe, wanted, page, totalPages, id, total) {
@@ -382,54 +369,97 @@
     }
   }
 
+  function describeHit(hit, wanted, chainId, timeframe, total) {
+    const pair = hit.pair;
+    return {
+      status: "live",
+      rank: hit.rank,
+      page: hit.page,
+      totalPages: Math.max(1, Math.ceil((total || 0) / 100)),
+      symbol: pair.base.symbol,
+      name: pair.base.name,
+      quote: pair.quote.symbol,
+      priceUsd: pair.priceUsd,
+      marketCap: pair.marketCap,
+      reason: reasonFor(wanted),
+      timeframe,
+      chainId,
+      pairAddress: pair.pairAddress || "",
+      pairUrl: pair.pairAddress ? `https://dexscreener.com/${chainId}/${pair.pairAddress}` : pageUrl(chainId, hit.page, timeframe),
+    };
+  }
+
+  async function scan(wanted, alive, onStatus) {
+    const chainId = wanted.chainId || "ethereum";
+    const timeframe = RANK_KEY[wanted.timeframe] ? wanted.timeframe : "h6";
+    onStatus({ type: "status", status: "scanning", page: 1, totalPages: 0, timeframe, chainId });
+    const first = await fetchPageRetry(chainId, 1, timeframe, alive);
+    if (!alive()) return null;
+    const total = first.total || first.pairs.length;
+    const totalPages = Math.min(120, Math.max(1, Math.ceil(total / 100)));
+    let hit = findHit(first, 1, wanted);
+    if (hit) return { hit, total, totalPages, chainId, timeframe };
+    for (let page = 2; page <= totalPages; page += 2) {
+      if (!alive()) return null;
+      const batch = [page];
+      if (page + 1 <= totalPages) batch.push(page + 1);
+      onStatus({ type: "status", status: "scanning", page, totalPages, timeframe, chainId });
+      const payloads = await Promise.all(batch.map((cursor) => fetchPageRetry(chainId, cursor, timeframe, alive)));
+      if (!alive()) return null;
+      for (let index = 0; index < batch.length; index += 1) {
+        hit = findHit(payloads[index], batch[index], wanted);
+        if (!hit) continue;
+        return { hit, total: payloads[index].total || total, totalPages, chainId, timeframe };
+      }
+    }
+    return { hit: null, total, totalPages, chainId, timeframe };
+  }
+
   async function track(wanted) {
     const id = ++generation;
     stopFeeds();
     lastRank = null;
     const alive = () => id === generation;
-    const chainId = wanted.chainId || "ethereum";
-    const timeframe = RANK_KEY[wanted.timeframe] ? wanted.timeframe : "h6";
     try {
-      post({ type: "status", status: "scanning", page: 1, totalPages: 0, timeframe, chainId });
-      const first = await fetchPageRetry(chainId, 1, timeframe, alive);
-      if (!alive()) return;
-      const total = first.total || first.pairs.length;
-      const totalPages = Math.min(120, Math.max(1, Math.ceil(total / 100)));
-      let hit = findHit(first, 1, wanted);
-      if (hit) {
-        publishHit(hit, wanted, chainId, timeframe, total);
-        watch(chainId, timeframe, wanted, hit.page, totalPages, id, total);
+      const found = await scan(wanted, alive, post);
+      if (!found || !alive()) return;
+      if (!found.hit) {
+        post({ type: "status", status: "missing", timeframe: found.timeframe, chainId: found.chainId });
         return;
       }
-      for (let page = 2; page <= totalPages; page += 2) {
-        if (!alive()) return;
-        const batch = [page];
-        if (page + 1 <= totalPages) batch.push(page + 1);
-        post({ type: "status", status: "scanning", page, totalPages, timeframe, chainId });
-        const payloads = await Promise.all(batch.map((cursor) => fetchPageRetry(chainId, cursor, timeframe, alive)));
-        if (!alive()) return;
-        for (let index = 0; index < batch.length; index += 1) {
-          hit = findHit(payloads[index], batch[index], wanted);
-          if (!hit) continue;
-          publishHit(hit, wanted, chainId, timeframe, payloads[index].total || total);
-          watch(chainId, timeframe, wanted, hit.page, totalPages, id, payloads[index].total || total);
-          return;
-        }
-      }
-      if (alive()) post({ type: "status", status: "missing", timeframe, chainId });
+      publishHit(found.hit, wanted, found.chainId, found.timeframe, found.total);
+      watch(found.chainId, found.timeframe, wanted, found.hit.page, found.totalPages, id, found.total);
     } catch (error) {
       if (!alive() || error.message === "aborted") return;
-      post({ type: "status", status: "error", error: error.message || "connection failed", timeframe, chainId });
+      post({ type: "status", status: "error", error: error.message || "connection failed" });
     }
   }
 
-  window.addEventListener("message", (event) => {
+  async function locate(wanted) {
+    const id = ++locateGeneration;
+    const alive = () => id === locateGeneration;
+    try {
+      const found = await scan(wanted, alive, (payload) => post({ ...payload, type: "locate-status" }));
+      if (!found || !alive()) return;
+      if (!found.hit) {
+        post({ type: "locate-status", status: "missing", timeframe: found.timeframe, chainId: found.chainId });
+        return;
+      }
+      post({ type: "located", ...describeHit(found.hit, wanted, found.chainId, found.timeframe, found.total) });
+    } catch (error) {
+      if (!alive() || error.message === "aborted") return;
+      post({ type: "locate-status", status: "error", error: error.message || "connection failed" });
+    }
+  }
+
+  function onMessage(event) {
     if (event.source !== window) return;
     const data = event.data;
     if (!data || data.source !== "find-rank-ext") return;
     const message = data.message || {};
     if (message.type === "stop") {
       generation += 1;
+      locateGeneration += 1;
       stopFeeds();
       return;
     }
@@ -438,5 +468,17 @@
       return;
     }
     if (message.type === "track" && message.query) track(message.query);
-  });
+    if (message.type === "locate" && message.query) locate(message.query);
+  }
+
+  window.addEventListener("message", onMessage);
+  window.__findRank = {
+    version: VERSION,
+    stop() {
+      generation += 1;
+      locateGeneration += 1;
+      stopFeeds();
+      window.removeEventListener("message", onMessage);
+    },
+  };
 })();

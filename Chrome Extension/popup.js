@@ -103,13 +103,48 @@ form.addEventListener("submit", (event) => {
     showError("Enter a token name, ticker, contract, base token, or pair address.");
     return;
   }
+  highlightState = null;
   chrome.runtime.sendMessage({ type: "track", query });
   render({ status: "scanning", page: 1, totalPages: 0 }, true);
 });
 
+let highlightState = null;
+
+function renderHighlight(highlight) {
+  highlightState = highlight || null;
+  if (!highlight || highlight.status === "idle") return;
+  status.hidden = false;
+  if (highlight.status === "scanning") {
+    const page = highlight.totalPages ? ` page ${highlight.page || 1} of ${highlight.totalPages}` : "";
+    status.textContent = `Finding the row${page}.`;
+    return;
+  }
+  if (highlight.status === "shown") {
+    status.textContent = `Highlighted #${Number(highlight.rank).toLocaleString()} on the list.`;
+    return;
+  }
+  if (highlight.status === "missing") {
+    status.textContent = "That pair is not on this chain’s trending list right now.";
+    return;
+  }
+  if (highlight.status === "error") status.textContent = highlight.error || "Could not highlight that pair.";
+}
+
 document.querySelector("#stop").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "stop" });
+  highlightState = null;
   render({ status: "idle" }, false);
+});
+
+document.querySelector("#highlight").addEventListener("click", () => {
+  showError("");
+  const next = readForm();
+  if (!next.name && !next.ticker && !next.ca && !next.base && !next.pair) {
+    showError("Enter a token name, ticker, contract, base token, or pair address.");
+    return;
+  }
+  chrome.runtime.sendMessage({ type: "highlight", query: next });
+  renderHighlight({ status: "scanning", page: 1, totalPages: 0 });
 });
 
 document.querySelector("#rank").addEventListener("click", (event) => {
@@ -120,15 +155,19 @@ document.querySelector("#rank").addEventListener("click", (event) => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
-  if (changes.result || changes.tracking) {
-    chrome.storage.local.get(["result", "tracking"]).then((stored) => render(stored.result, stored.tracking));
+  if (changes.result || changes.tracking || changes.highlight) {
+    chrome.storage.local.get(["result", "tracking", "highlight"]).then((stored) => {
+      render(stored.result, stored.tracking);
+      if (stored.highlight) renderHighlight(stored.highlight);
+    });
   }
 });
 
 loadChains()
-  .then(() => chrome.storage.local.get(["query", "result", "tracking"]))
+  .then(() => chrome.storage.local.get(["query", "result", "tracking", "highlight"]))
   .then((stored) => {
     fill(stored.query);
     render(stored.result, stored.tracking);
+    if (stored.highlight) renderHighlight(stored.highlight);
   })
   .catch(() => showError("The chain list did not load."));
