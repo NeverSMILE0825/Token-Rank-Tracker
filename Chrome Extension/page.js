@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "1.1.1";
+  const VERSION = "1.2.0";
   if (window.__findRank?.version === VERSION) return;
   if (window.__findRank?.stop) window.__findRank.stop();
 
@@ -241,21 +241,30 @@
     return true;
   }
 
-  function fetchPage(chainId, page, timeframe) {
+  function fetchPage(chainId, page, timeframe, alive) {
     const url = socketUrl(chainId, page, timeframe);
     return new Promise((resolve, reject) => {
+      if (!alive()) {
+        reject(new Error("aborted"));
+        return;
+      }
       const ws = new WebSocket(url);
       let settled = false;
       const finish = (fn, value) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        clearInterval(watch);
         try { ws.close(); } catch { /* already closed */ }
         fn(value);
       };
-      const timer = setTimeout(() => finish(reject, new Error("timeout")), 25000);
+      const timer = setTimeout(() => finish(reject, new Error("timeout")), 12000);
+      const watch = setInterval(() => {
+        if (!alive()) finish(reject, new Error("aborted"));
+      }, 80);
       ws.binaryType = "arraybuffer";
       ws.onerror = () => finish(reject, new Error("connection failed"));
+      ws.onclose = () => finish(reject, new Error("connection failed"));
       ws.onmessage = (event) => {
         const buf = new Uint8Array(event.data);
         if (buf.length < 500) return;
@@ -270,17 +279,18 @@
 
   async function fetchPageRetry(chainId, page, timeframe, alive) {
     let lastError = new Error("no data");
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       if (!alive()) throw new Error("aborted");
       try {
-        const payload = await fetchPage(chainId, page, timeframe);
+        const payload = await fetchPage(chainId, page, timeframe, alive);
         if (pageIsComplete(payload, page)) return payload;
         lastError = new Error("incomplete");
       } catch (error) {
         if (error.message === "aborted") throw error;
         lastError = error;
       }
-      await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+      if (!alive()) throw new Error("aborted");
+      await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
     }
     throw lastError;
   }
@@ -392,25 +402,60 @@
   async function scan(wanted, alive, onStatus) {
     const chainId = wanted.chainId || "ethereum";
     const timeframe = RANK_KEY[wanted.timeframe] ? wanted.timeframe : "h6";
+    let stopScan = false;
+    const running = () => alive() && !stopScan;
+    const width = 12;
     onStatus({ type: "status", status: "scanning", page: 1, totalPages: 0, timeframe, chainId });
-    const first = await fetchPageRetry(chainId, 1, timeframe, alive);
-    if (!alive()) return null;
+    const first = await fetchPageRetry(chainId, 1, timeframe, running);
+    if (!running()) return null;
     const total = first.total || first.pairs.length;
     const totalPages = Math.min(120, Math.max(1, Math.ceil(total / 100)));
     let hit = findHit(first, 1, wanted);
     if (hit) return { hit, total, totalPages, chainId, timeframe };
-    for (let page = 2; page <= totalPages; page += 2) {
-      if (!alive()) return null;
-      const batch = [page];
-      if (page + 1 <= totalPages) batch.push(page + 1);
-      onStatus({ type: "status", status: "scanning", page, totalPages, timeframe, chainId });
-      const payloads = await Promise.all(batch.map((cursor) => fetchPageRetry(chainId, cursor, timeframe, alive)));
-      if (!alive()) return null;
-      for (let index = 0; index < batch.length; index += 1) {
-        hit = findHit(payloads[index], batch[index], wanted);
-        if (!hit) continue;
-        return { hit, total: payloads[index].total || total, totalPages, chainId, timeframe };
+
+    const results = new Map();
+    const pending = new Map();
+    let next = 2;
+    const launch = () => {
+      while (pending.size < width && next <= totalPages && running()) {
+        const page = next;
+        next += 1;
+        const job = fetchPageRetry(chainId, page, timeframe, running).then(
+          (payload) => {
+            results.set(page, { payload });
+          },
+          (error) => {
+            results.set(page, { error });
+          }
+        );
+        pending.set(page, job.finally(() => pending.delete(page)));
       }
+    };
+
+    launch();
+    for (let cursor = 2; cursor <= totalPages; cursor += 1) {
+      while (!results.has(cursor)) {
+        if (!running()) return null;
+        if (!pending.size) throw new Error("connection failed");
+        await Promise.race(pending.values());
+      }
+      if (!running()) return null;
+      const item = results.get(cursor);
+      results.delete(cursor);
+      if (item.error) {
+        if (item.error.message === "aborted") return null;
+        throw item.error;
+      }
+      if (cursor === 2 || cursor % 4 === 0) {
+        onStatus({ type: "status", status: "scanning", page: cursor, totalPages, timeframe, chainId });
+      }
+      hit = findHit(item.payload, cursor, wanted);
+      if (!hit) {
+        launch();
+        continue;
+      }
+      stopScan = true;
+      return { hit, total: item.payload.total || total, totalPages, chainId, timeframe };
     }
     return { hit: null, total, totalPages, chainId, timeframe };
   }

@@ -155,44 +155,98 @@ async function deliver(id, message) {
 }
 
 function markRow(pairAddress, symbol, name) {
-  const styleId = "find-rank-highlight-style";
-  let style = document.getElementById(styleId);
-  if (!style) {
-    style = document.createElement("style");
-    style.id = styleId;
-    style.textContent = [
-      "a.find-rank-hit {",
-      "  box-shadow: inset 0 0 0 3px #ff2a2a !important;",
-      "  background: rgba(255, 42, 42, 0.08) !important;",
-      "  border-radius: 4px !important;",
-      "  position: relative !important;",
-      "  z-index: 30 !important;",
-      "}",
-    ].join("\n");
-    document.documentElement.appendChild(style);
+  const boxId = "find-rank-highlight-box";
+  let box = document.getElementById(boxId);
+  if (!box) {
+    box = document.createElement("div");
+    box.id = boxId;
+    box.style.position = "fixed";
+    box.style.pointerEvents = "none";
+    box.style.zIndex = "2147483646";
+    box.style.boxSizing = "border-box";
+    box.style.border = "3px solid #ff2a2a";
+    box.style.borderRadius = "4px";
+    box.style.background = "rgba(255, 42, 42, 0.12)";
+    box.style.display = "none";
+    document.documentElement.appendChild(box);
   }
+  if (!box.dataset.bound) {
+    box.dataset.bound = "1";
+    const sync = () => {
+      if (box.__row && box.__row.isConnected) place(box.__row);
+      else box.style.display = "none";
+    };
+    window.addEventListener("scroll", sync, true);
+    window.addEventListener("resize", sync);
+  }
+
+  function clipOf(row) {
+    let left = 0;
+    let top = 0;
+    let right = window.innerWidth;
+    let bottom = window.innerHeight;
+    let el = row.parentElement;
+    while (el && el !== document.documentElement) {
+      const style = getComputedStyle(el);
+      const overflow = `${style.overflow}${style.overflowX}${style.overflowY}`;
+      if (/auto|scroll|hidden/.test(overflow)) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 20 && rect.height > 20) {
+          left = Math.max(left, rect.left);
+          top = Math.max(top, rect.top);
+          right = Math.min(right, rect.right);
+          bottom = Math.min(bottom, rect.bottom);
+        }
+      }
+      el = el.parentElement;
+    }
+    return { left, top, right, bottom };
+  }
+
+  function place(row) {
+    const rowRect = row.getBoundingClientRect();
+    const clip = clipOf(row);
+    const left = Math.max(rowRect.left, clip.left);
+    const top = Math.max(rowRect.top, clip.top);
+    const right = Math.min(rowRect.right, clip.right);
+    const bottom = Math.min(rowRect.bottom, clip.bottom);
+    const width = right - left;
+    const height = bottom - top;
+    if (width < 8 || height < 8) {
+      box.style.display = "none";
+      return;
+    }
+    box.style.display = "block";
+    box.style.left = `${left}px`;
+    box.style.top = `${top}px`;
+    box.style.width = `${width}px`;
+    box.style.height = `${height}px`;
+  }
+
   const wantAddress = String(pairAddress || "").toLowerCase();
   const wantSymbol = String(symbol || "").replace(/^\$+/, "").replace(/\s+/g, "").toUpperCase();
   const wantName = String(name || "").trim().toLowerCase();
   const started = Date.now();
+  const widest = (rows) => rows.sort((a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0] || null;
   const find = () => {
-    document.querySelectorAll("a.find-rank-hit").forEach((row) => row.classList.remove("find-rank-hit"));
     const links = [...document.querySelectorAll("a[href]")];
     let row = wantAddress
-      ? links.find((link) => (link.getAttribute("href") || "").toLowerCase().includes(wantAddress))
+      ? widest(links.filter((link) => (link.getAttribute("href") || "").toLowerCase().includes(wantAddress)))
       : null;
     if (!row && wantSymbol) {
-      row = links.find((link) => {
+      row = widest(links.filter((link) => {
         const text = link.innerText || "";
         const symbolOk = text.toUpperCase().replace(/\s+/g, "").includes(wantSymbol);
         const nameOk = !wantName || text.toLowerCase().includes(wantName);
-        return symbolOk && nameOk;
-      });
+        return symbolOk && nameOk && text.trim().startsWith("#");
+      }));
     }
     if (!row) return null;
-    row.classList.add("find-rank-hit");
+    box.__row = row;
     row.scrollIntoView({ block: "center", inline: "nearest" });
-    return { ok: true, text: (row.innerText || "").slice(0, 180) };
+    place(row);
+    requestAnimationFrame(() => place(row));
+    return { ok: true, text: (row.innerText || "").slice(0, 220) };
   };
   return new Promise((resolve) => {
     const tick = () => {
@@ -205,7 +259,7 @@ function markRow(pairAddress, symbol, name) {
         resolve({ ok: false });
         return;
       }
-      setTimeout(tick, 400);
+      setTimeout(tick, 250);
     };
     tick();
   });
