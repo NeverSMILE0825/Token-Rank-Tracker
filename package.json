@@ -11,6 +11,7 @@
     "check": "node scripts/check.js"
   },
   "dependencies": {
+    "https-proxy-agent": "^9.1.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {

@@ -1,10 +1,11 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require("electron");
 const path = require("path");
 const { CHAINS } = require("../lib/chains");
+const { setProxyUrl } = require("../lib/screener");
 const { createSession, run } = require("../lib/tracker");
 
 let mainWindow = null;
-let session = null;
+let rankSession = null;
 
 function docsFile(...parts) {
   return path.join(__dirname, "..", "docs", ...parts);
@@ -13,6 +14,18 @@ function docsFile(...parts) {
 function post(contents, message) {
   if (!contents || contents.isDestroyed()) return;
   contents.send("find-rank", message);
+}
+
+function proxyFromResolution(result) {
+  const parts = String(result || "").split(";").map((part) => part.trim()).filter(Boolean);
+  for (const part of parts) {
+    const match = part.match(/^(PROXY|HTTPS)\s+(\S+)/i);
+    if (!match) continue;
+    const host = match[2];
+    if (/^https?:\/\//i.test(host)) return host;
+    return `${match[1].toUpperCase() === "HTTPS" ? "https" : "http"}://${host}`;
+  }
+  return "";
 }
 
 function openWindow() {
@@ -50,13 +63,13 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.on("find-rank", (event, message) => {
     if (!message || typeof message !== "object") return;
     if (message.type === "stop") {
-      session?.stop();
-      session = null;
+      rankSession?.stop();
+      rankSession = null;
       post(event.sender, { type: "idle" });
       return;
     }
     if (message.type !== "track") return;
-    session?.stop();
+    rankSession?.stop();
     const bridge = {
       readyState: 1,
       send(data) {
@@ -64,13 +77,13 @@ if (!app.requestSingleInstanceLock()) {
       },
     };
     try {
-      session = createSession(bridge, message);
+      rankSession = createSession(bridge, message);
     } catch (error) {
-      session = null;
+      rankSession = null;
       post(event.sender, { type: "error", error: error.message });
       return;
     }
-    run(session).catch((error) => {
+    run(rankSession).catch((error) => {
       if (error?.message === "aborted") return;
       post(event.sender, { type: "error", error: "The tracker stopped unexpectedly." });
     });
@@ -82,13 +95,21 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus();
   });
 
-  app.whenReady().then(openWindow).catch((error) => {
+  app.whenReady().then(async () => {
+    try {
+      const resolved = await session.defaultSession.resolveProxy("https://io.dexscreener.com");
+      setProxyUrl(proxyFromResolution(resolved));
+    } catch {
+      setProxyUrl("");
+    }
+    openWindow();
+  }).catch((error) => {
     dialog.showErrorBox("Find Rank", error.message || "Find Rank could not start.");
     app.quit();
   });
 
   app.on("window-all-closed", () => {
-    session?.stop();
+    rankSession?.stop();
     app.quit();
   });
 }
