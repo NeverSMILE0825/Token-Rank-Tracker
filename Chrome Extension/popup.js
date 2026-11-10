@@ -6,7 +6,7 @@ const status = document.querySelector("#status");
 const live = document.querySelector("#live");
 
 function field(id) {
-  return document.querySelector(`#${id}`);
+  return document.querySelector(`#form #${id}`);
 }
 
 function showError(message) {
@@ -54,7 +54,7 @@ function render(result, tracking) {
   rank.textContent = `#${Number(result.rank).toLocaleString()}`;
   rank.href = result.pairUrl || "https://dexscreener.com/";
   document.querySelector("#window").textContent = WINDOWS[result.timeframe] || "Trending";
-  document.querySelector("#pair").textContent = `${result.symbol || "—"} / ${result.quote || ""}`.trim();
+  document.querySelector("#matched").textContent = `${result.symbol || "—"} / ${result.quote || ""}`.trim();
   const price = money(result.priceUsd);
   document.querySelector("#detail").textContent = [result.name, price, result.reason].filter(Boolean).join(" · ");
 }
