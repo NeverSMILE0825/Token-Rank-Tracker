@@ -1,4 +1,4 @@
-const { matches } = require("../lib/match");
+const { matches, matchesPair } = require("../lib/match");
 const { fetchPage } = require("../lib/screener");
 
 function assert(condition, message) {
@@ -12,6 +12,16 @@ assert(matches(gta, { name: "Grand Theft Anakin", ticker: "$GTA", ca: "" }), "na
 assert(!matches(lookalike, { name: "Grand Theft Anakin", ticker: "GTA", ca: "" }), "lookalike ticker");
 assert(matches(gta, { name: "", ticker: "", ca: "0xA7362118A42Ad52C68A694972b308cFB02E94CD2" }), "checksum address");
 assert(!matches(gta, { name: "", ticker: "", ca: "So11111111111111111111111111111111111111112" }), "different address");
+
+const poolA = { pairAddress: "0xAAA111", base: gta };
+const poolB = { pairAddress: "0xBBB222", base: gta };
+const empty = { name: "", ticker: "", ca: "", base: "", pair: "" };
+assert(matchesPair(poolA, { ...empty, pair: "0xaaa111" }), "pair address");
+assert(!matchesPair(poolB, { ...empty, pair: "0xaaa111" }), "other pair");
+assert(matchesPair(poolA, { ...empty, base: "0xA7362118A42Ad52C68A694972b308cFB02E94CD2" }), "base token");
+assert(!matchesPair(poolA, { ...empty, base: lookalike.address }), "other base token");
+assert(matchesPair(poolA, { ...empty, pair: "0xaaa111", ca: gta.address, name: "Wrong", ticker: "NOPE" }), "pair wins with contract");
+assert(!matchesPair(poolA, { ...empty, pair: "0xaaa111", ca: lookalike.address }), "pair with a different contract");
 
 fetchPage("ethereum", 1, "h24")
   .then((page) => {

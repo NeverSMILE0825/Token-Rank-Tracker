@@ -119,6 +119,11 @@ h1 {
   gap: 12px;
 }
 
+.fields.optional {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 12px;
+}
+
 label span, legend {
   display: block;
   margin-bottom: 7px;
@@ -173,7 +178,7 @@ input[type="text"], input[type="search"], input:not([type]) {
   outline: none;
 }
 
-#ca, .addr, .mono { font-family: "IBM Plex Mono", Consolas, monospace; }
+#ca, #base, #pair, .addr, .mono { font-family: "IBM Plex Mono", Consolas, monospace; }
 
 .controls {
   display: grid;

@@ -25,11 +25,15 @@ let chainCatalog = [];
 const WINDOWS = { m5: "Trending 5M", h1: "Trending 1H", h6: "Trending 6H", h24: "Trending 24H" };
 
 const REASON = {
+  pair: "Matched pair",
+  base: "Matched base token",
   contract: "Matched contract",
   "name+ticker": "Matched name + ticker",
   ticker: "Matched ticker",
   name: "Matched name",
 };
+
+const HINT = "Up to 8 chains at once. A pair address selects one pool when the same name, ticker, and contract appear more than once. A base token or contract address wins over the name and ticker.";
 
 function setConn(text, kind) {
   conn.textContent = text;
@@ -53,6 +57,8 @@ function saveQuery() {
     name: field("name").value.trim(),
     ticker: field("ticker").value.trim(),
     ca: field("ca").value.trim(),
+    base: field("base").value.trim(),
+    pair: field("pair").value.trim(),
     timeframe: new FormData(form).get("timeframe"),
     live: form.live.checked,
     findAll: form.findAll.checked,
@@ -85,7 +91,7 @@ function toggleChain(id, button) {
     selected.add(id);
     button.setAttribute("aria-pressed", "true");
     cap.classList.remove("warn");
-    cap.textContent = "Up to 8 chains at once. Add the token name with the ticker so lookalikes are skipped. A contract address wins over both.";
+    cap.textContent = HINT;
   }
   syncPressed();
 }
@@ -112,6 +118,8 @@ function applySaved(saved) {
   if (saved.name) field("name").value = saved.name;
   if (saved.ticker) field("ticker").value = saved.ticker;
   if (saved.ca) field("ca").value = saved.ca;
+  if (saved.base) field("base").value = saved.base;
+  if (saved.pair) field("pair").value = saved.pair;
   if (saved.timeframe) {
     const radio = form.querySelector(`input[value="${saved.timeframe}"]`);
     if (radio) radio.checked = true;
@@ -312,7 +320,7 @@ function card(chainId) {
     </div>
     <div class="changes">${changeRow(match)}</div>
     <div class="foot">
-      <div class="addr">${esc(shortAddress(match.address))} · vol ${compact(match.volumeH24)} · ${formatRank(match.txnsH24 || 0)} txns · age ${age(match.createdAt)}</div>
+      <div class="addr">${esc(shortAddress(match.address))}${match.pairAddress ? ` · pair ${esc(shortAddress(match.pairAddress))}` : ""} · vol ${compact(match.volumeH24)} · ${formatRank(match.txnsH24 || 0)} txns · age ${age(match.createdAt)}</div>
       <div class="links">
         <a href="${esc(match.pairUrl)}" target="_blank" rel="noreferrer">Pair</a>
         <a href="${esc(match.listUrl)}" target="_blank" rel="noreferrer">List page</a>
@@ -433,8 +441,8 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   showError("");
   const query = saveQuery();
-  if (!query.name && !query.ticker && !query.ca) {
-    showError("Enter a token name, ticker, or contract.");
+  if (!query.name && !query.ticker && !query.ca && !query.base && !query.pair) {
+    showError("Enter a token name, ticker, contract, base token, or pair address.");
     return;
   }
   if (!query.chains.length) {

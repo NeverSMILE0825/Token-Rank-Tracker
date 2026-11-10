@@ -46,6 +46,16 @@
             <input id="ca" name="ca" placeholder="0x… or mint address" maxlength="120" spellcheck="false" />
           </label>
         </div>
+        <div class="fields optional">
+          <label>
+            <span>Base token <em>optional</em></span>
+            <input id="base" name="base" placeholder="Base token address" maxlength="120" spellcheck="false" />
+          </label>
+          <label>
+            <span>Pair address <em>optional</em></span>
+            <input id="pair" name="pair" placeholder="Pair or pool address" maxlength="140" spellcheck="false" />
+          </label>
+        </div>
 
         <div class="controls">
           <fieldset>
@@ -87,7 +97,7 @@
             <input id="chain-search" type="search" placeholder="Search chains" />
             <div class="chain-grid" id="all-grid"></div>
           </details>
-          <p class="hint" id="cap">Up to 8 chains at once. Add the token name with the ticker so lookalikes are skipped. A contract address wins over both.</p>
+          <p class="hint" id="cap">Up to 8 chains at once. A pair address selects one pool when the same name, ticker, and contract appear more than once. A base token or contract address wins over the name and ticker.</p>
         </div>
 
         <p class="form-error" id="form-error" hidden></p>
